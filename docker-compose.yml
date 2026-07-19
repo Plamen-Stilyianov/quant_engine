@@ -1,0 +1,32 @@
+services:
+  quant_bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quant_trading_engine_local
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=Europe/London  # FORCE TIMEZONE SYNC NATIVELY
+    volumes:
+      - .:/app
+      - ./logs:/app/logs
+
+  quant_ui_package:
+    image: python:3.13-slim
+    container_name: quant_trading_gui_package_local
+    restart: always
+    ports:
+      - "8502:8501"
+    working_dir: /app
+    volumes:
+      - .:/app
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=Europe/London  # FORCE TIMEZONE SYNC NATIVELY
+    command: >
+      sh -c "pip install --no-cache-dir streamlit pandas numpy scipy plotly && 
+            python -m streamlit run webgui_dashboard/main_ui.py --server.port=8501 --server.address=0.0.0.0"
