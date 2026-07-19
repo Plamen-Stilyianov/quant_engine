@@ -20,12 +20,26 @@ Tracks the automated gateway intercepting a severe structural price crash, bypas
 
 ---
 
-## 🎯 Strategic Deployment & Cross-Build Roadmap
+## 🎯 Strategic Deployment & Hybrid Cloud Roadmap
 
-The platform follows a deliberate, multi-phase cross-platform scaling pipeline:
-1. **Phase 1 (Current)**: Local prototyping, secret configuration locking, and hot-reload development using **Windows Docker Desktop + PyCharm (Python 3.13)**.
-2. **Phase 2 (Workstation Transition)**: Local bare-metal development, cluster testing, and multi-architecture cross-building (`docker buildx`) hosted on an **openSUSE Tumbleweed workstation**.
-3. **Phase 3 (Production Cloud)**: Automated deployment of cross-compiled ARM64 containers into a managed **Kubernetes (K8s) cluster on Oracle Cloud Infrastructure (OCI)**.
+To minimize execution risks and optimize hardware efficiency, the platform follows a strict, three-phase environmental escalation and deployment pipeline:
+
+### 🪟 Phase 1: Local Windows Sandboxed Prototyping (Current)
+* **Environment**: Windows 11 Desktop + Docker Desktop for Windows + PyCharm.
+* **Objective**: Rapid algorithm prototyping, UI visualization tuning, and configuration locking via local `.env` parameter injections. Containers leverage local shared volumes for immediate data persistence on the Windows host system.
+
+### 🦎 Phase 2: openSUSE Tumbleweed Bare-Metal Workstation Migration (Next)
+* **Environment**: Native rolling-release openSUSE Tumbleweed workstation running a low-latency Linux kernel.
+* **Objective**: Eliminate hypervisor translation overhead by executing directly on the bare-metal Linux POSIX runtime to minimize thread latency.
+* **Toolchain Integration**: Utilizing native container engines (`podman`/`docker`) along with **Docker Buildx** pipelines to securely cross-compile and verify x86_64 and arm64 system layers locally before pushing to cloud registries.
+
+### ☁️ Phase 3: Cloud Orchestration via Kubernetes (K8s) on Oracle Cloud Infrastructure (OCI)
+* **Environment**: OCI Container Engine for Kubernetes (OKE) running on high-efficiency Ampere A1 Compute shapes (ARM64 architecture).
+* **Objective**: High-availability, production-grade automated scaling.
+* **Architecture Mapping**:
+  * **Stateless Pod Isolation**: The `quant_bot` core engine and the `webgui_dashboard` application are split into completely independent pods, maximizing computing lanes.
+  * **Ingress Secure Routing**: The user interface is fronted by an encrypted K8s Ingress Controller mapping port 443 with TLS termination, keeping financial telemetry secure.
+  * **Persistent Volume Claims (PVC)**: Core logging matrices and transaction histories are written out of containers using K8s PVCs bound to high-IOPS OCI block storage volumes, ensuring permanent data persistence when pods lifecycle.
 
 ---
 
@@ -107,18 +121,18 @@ docker-compose build --no-cache ; docker-compose up -d
 ### 3. Verification of System Telemetry
 Once running, the log file `logs/execution.log` captures execution ticks, failover triggers, and MT5 emulation layer outputs:
 ```text
-2026-07-19 14:42:46,560 [INFO] 🚀 Initializing Quant Engine System Orchestrator Bundle...
-2026-07-19 14:42:46,561 [INFO] ⚙️ Execution Platform State: Python 3.13 Stable Container Layer
-2026-07-19 14:42:46,561 [INFO] ==================================================================
-2026-07-19 14:42:46,561 [INFO] 🔄 Polling fresh data matrix arrays for EUR_USD...
-2026-07-19 14:42:46,731 [WARNING] ⚠️ [Gateway Link Intercepted] OANDA Server returned code 403. Activating localized statistical simulation engine...
-2026-07-19 14:42:46,732 [INFO] ⚙️ [Failover Engine] Injecting Regime: Normal Distribution Sideways Market.
-2026-07-19 14:42:46,742 [INFO] 📊 [Alpha Math Core] Current Velocity: -0.00004927 | Rolling Mean: 0.00002605 | Standard Deviation: 0.00008640 | Z-Score Output: -0.8718
-2026-07-19 14:42:46,742 [INFO] ⚖️ Market distribution is normal. Holding positions.
-2026-07-19 14:43:16,916 [INFO] 🔄 Polling fresh data matrix arrays for EUR_USD...
-2026-07-19 14:43:17,079 [WARNING] ⚠️ [Gateway Link Intercepted] OANDA Server returned code 403. Activating localized statistical simulation engine...
-2026-07-19 14:43:17,080 [INFO] ⚙️ [Failover Engine] Injecting Regime: Aggressive Momentum Upward Trend.
-2026-07-19 14:43:17,082 [INFO] 📊 [Alpha Math Core] Current Velocity: 0.00021065 | Rolling Mean: 0.00021172 | Standard Deviation: 0.00000063 | Z-Score Output: -1.6914
+2026-07-19 17:07:15,093 [WARNING] ⚠️ [Gateway Link Intercepted] OANDA Server returned code 403. Activating localized statistical simulation engine...
+2026-07-19 17:07:15,094 [INFO] ⚙️ [Failover Engine] Injecting Regime: Extreme Volatility Downward Price Shock.
+2026-07-19 17:07:15,099 [INFO] 📊 [Alpha Math Core] Current Velocity: -0.00018879 | Rolling Mean: -0.00018794 | Standard Deviation: 0.00000050 | Z-Score Output: -1.7021
+2026-07-19 17:07:15,100 [INFO] ⚠️ Extreme Downward Outlier Detected (Z < -1.5). Distribution favors LONG snapback.
+2026-07-19 17:07:15,102 [INFO] 🎯 Actionable strategy signal detected (1). Querying risk gates...
+2026-07-19 17:07:15,103 [INFO] ==================================================================
+2026-07-19 17:07:15,103 [INFO] 🎯 [MT5 CORE EMULATION LAYER - TRADING SIGNAL TELEMETRY]
+2026-07-19 17:07:15,104 [INFO] 🔹 Target Symbol: EUR_USD | Side: 0 (0=Buy, 1=Sell)
+2026-07-19 17:07:15,105 [INFO] 🔹 Execution Price: 1.07 | Target Volume: 0.1 Lots
+2026-07-19 17:07:15,106 [INFO] 🔹 Absolute Stop Loss: 1.068 | Take Profit: 1.074
+2026-07-19 17:07:15,107 [INFO] 🔹 MT5 Magic Identifier: 99112233
+2026-07-19 17:07:15,108 [INFO] ==================================================================
 ```
 
 ---
