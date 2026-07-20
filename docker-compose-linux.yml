@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+  # MT5 ENGINE TRANSLATION GATEWAY (Wine Component)
+  mt5_bridge:
+    image: gmag11/metatrader5_vnc:latest
+    container_name: quant_trading_mt5_bridge_local
+    restart: always
+    ports:
+      - "3000:3000"  # View MT5 execution workspace directly via http://localhost:3000
+    environment:
+      - CUSTOM_USER=admin
+      - PASSWORD=secure_vnc_telemetry_pass
+      - TZ=Europe/London
+    volumes:
+      - mt5_config:/config
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+
+  # QUANT BOT CORE
+  quant_bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.linux
+    container_name: quant_trading_engine_local
+    restart: always
+    depends_on:
+      - mt5_bridge
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=Europe/London
+    volumes:
+      - .:/app
+      - ./logs:/app/logs
+
+  # STREAMLIT WEB DASHBOARD PACKAGE
+  quant_ui_package:
+    image: python:3.13-slim
+    container_name: quant_trading_gui_package_local
+    restart: always
+    ports:
+      - "8502:8501"
+    working_dir: /app
+    volumes:
+      - .:/app
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=Europe/London
+    command: >
+      sh -c "pip install --no-cache-dir streamlit pandas numpy scipy plotly && 
+            python -m streamlit run webgui_dashboard/main_ui.py --server.port=8501 --server.address=0.0.0.0"
+
+volumes:
+  mt5_config:

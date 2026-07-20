@@ -1,0 +1,28 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Clean up system dependencies
+RUN apt-get update && apt-get install -y \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel
+
+# HARD-CODED INLINE PIP: Injected plotly to clear the UI render engine block
+RUN pip3 install --no-cache-dir \
+    "numpy>=2.1.0" \
+    "pandas>=2.2.0" \
+    "scipy>=1.14.0" \
+    "requests>=2.32.0" \
+    "streamlit>=1.59.2" \
+    "plotly>=5.22.0" \
+    "plumbum==1.7.0" \
+    "rpyc==5.2.3" \
+    "mt5linux==1.0.3"
+
+COPY . /app
+
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python3", "main.py"]

@@ -76,3 +76,32 @@ class MarketGateway:
         logging.info(f"🔹 MT5 Magic Identifier: {mt5_payload['magic']}")
         logging.info("==================================================================")
         return True
+
+
+    def transmit_signal_alert(symbol, side, price, volume, sl, tp, z_score):
+        """
+        Forwards high-priority strategy triggers directly to a chat application channel.
+        """
+        webhook_url = os.getenv("ALERT_WEBHOOK_URL")
+        if not webhook_url:
+            return  # Fallback quietly if webhook is unconfigured
+
+        side_string = "🟢 BUY (LONG SNAPBACK)" if side == 0 else "🔴 SELL (SHORT SHORT)"
+
+        payload = {
+            "text": (
+                f"🎯 *Quant Engine Execution Alert*\n"
+                f"==================================\n"
+                f"🔹 *Asset Target:* {symbol}\n"
+                f"🔹 *Execution Action:* {side_string}\n"
+                f"🔹 *Trigger Z-Score:* {z_score:.4f}\n"
+                f"🔹 *Price Baseline:* {price:.4f}\n"
+                f"🔹 *Volume Allocation:* {volume} Lots\n"
+                f"🔹 *Stop Loss:* {sl:.4f} | *Take Profit:* {tp:.4f}\n"
+                f"=================================="
+            )
+        }
+        try:
+            requests.post(webhook_url, json=payload, timeout=5)
+        except Exception as e:
+            print(f"Failed to forward alert telemetry: {e}")

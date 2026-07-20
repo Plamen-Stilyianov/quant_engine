@@ -1,0 +1,144 @@
+# 2. QUANT_ENGINE CORE BOT EXECUTION (Runs main.py)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-bot
+  namespace: quant-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quant-bot
+  template:
+    metadata:
+      labels:
+        app: quant-bot
+    spec:
+      # ◄ OPTIMIZED: Replaced strict nodeSelector with flexible multi-arch scheduler
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - arm64
+                - amd64
+      imagePullSecrets:
+        - name: ocir-secret
+      containers:
+      - name: engine
+        image: iad.ocir.io/idqcoec1tv4k/trading-system/backend:v7-multiarch
+        imagePullPolicy: Always
+        command: ["python3"]
+        args: ["main.py"]
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: TZ
+          value: "Europe/London"
+        - name: MT5_HOST
+          value: "mt5-bridge.quant-engine.svc.cluster.local"
+        - name: MT5_PORT
+          value: "8001"
+        - name: APP_ENV
+          valueFrom:
+            secretKeyRef:
+              name: quant-engine-secret
+              key: APP_ENV
+        - name: OANDA_ACCESS_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: quant-engine-secret
+              key: OANDA_ACCESS_TOKEN
+        - name: OANDA_ACCOUNT_ID
+          valueFrom:
+            secretKeyRef:
+              name: quant-engine-secret
+              key: OANDA_ACCOUNT_ID
+        - name: OANDA_API_URL
+          valueFrom:
+            secretKeyRef:
+              name: quant-engine-secret
+              key: OANDA_API_URL
+        - name: MT5_LOGIN
+          valueFrom:
+            secretKeyRef:
+              name: quant-engine-secret
+              key: MT5_LOGIN
+        - name: MT5_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: quant-engine-secret
+              key: MT5_PASSWORD
+        - name: MT5_SERVER
+          valueFrom:
+            secretKeyRef:
+              name: quant-engine-secret
+              key: MT5_SERVER
+        volumeMounts:
+        - name: logs-volume
+          mountPath: /app/logs
+      volumes:
+      - name: logs-volume
+        emptyDir: {}
+---
+# 3. QUANT_ENGINE STREAMLIT INTERACTIVE DATA UI (Runs webgui_dashboard/main_ui.py)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-ui
+  namespace: quant-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quant-ui
+  template:
+    metadata:
+      labels:
+        app: quant-ui
+    spec:
+      # ◄ OPTIMIZED: Replaced strict nodeSelector with flexible multi-arch scheduler
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - arm64
+                - amd64
+      imagePullSecrets:
+        - name: ocir-secret
+      containers:
+      - name: dashboard
+        image: iad.ocir.io/idqcoec1tv4k/trading-system/backend:v7-multiarch
+        imagePullPolicy: Always
+        command: ["python3"]
+        args: ["-m", "streamlit", "run", "webgui_dashboard/main_ui.py", "--server.port=8501", "--server.address=0.0.0.0"]
+        ports:
+        - containerPort: 8501
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: TZ
+          value: "Europe/London"
+        - name: DASHBOARD_USER
+          valueFrom:
+            secretKeyRef:
+              name: quant-engine-secret
+              key: DASHBOARD_USER
+        - name: DASHBOARD_PASS
+          valueFrom:
+            secretKeyRef:
+              name: quant-engine-secret
+              key: DASHBOARD_PASS
+        volumeMounts:
+        - name: logs-volume
+          mountPath: /app/logs
+      volumes:
+      - name: logs-volume
+        emptyDir: {}
