@@ -1,7 +1,16 @@
+import sys
+import os
+
+# ==============================================================================
+# CRITICAL PROJECT ROOT ANCHOR (Must execute before importing any project files)
+# ==============================================================================
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 import streamlit as st
 import pandas as pd
 import numpy as np
-import os
 
 # 1. INITIALIZE PLATFORM CONFIGURATION (Must be the absolute first layout directive)
 st.set_page_config(
@@ -59,9 +68,9 @@ def check_gui_authentication():
             submit_button = st.form_submit_button(label="Authenticate Session", width="stretch")
 
         if submit_button:
-            # DIAGNOSTIC LOGGING: Prints exact characters to the terminal console
-            print(f"DEBUG CRITICAL: [Expected User: 'admin_plamen'] | [Typed User: '{user_input}']")
-            print(f"DEBUG CRITICAL: [Expected Pass: 'institutional_quant_2026'] | [Typed Pass: '{pass_input}']")
+            # DIAGNOSTIC LOGGING: Prints exact variables to the terminal console
+            print(f"DEBUG CRITICAL: [Expected User: '{expected_username}'] | [Typed User: '{user_input}']")
+            print(f"DEBUG CRITICAL: [Expected Pass: '{expected_password}'] | [Typed Pass: '{pass_input}']")
 
             if user_input.strip() == expected_username and pass_input.strip() == expected_password:
                 st.session_state["authenticated"] = True
@@ -156,10 +165,10 @@ def boot_dashboard_package():
     df["Z_Score_Signal"] = signals
 
     # ==============================================================================
-    # 3. RENDER INTERACTIVE PLOTLY GRAPHS (Clean width parameters passed natively)
+    # 3. RENDER INTERACTIVE PLOTLY GRAPHS
     # ==============================================================================
-    st.plotly_chart(RenderEngine.draw_market_matrix(df, gui_threshold), width="stretch")
-    st.plotly_chart(RenderEngine.draw_z_wave(df, gui_threshold), width="stretch")
+    st.plotly_chart(RenderEngine.draw_market_matrix(df, gui_threshold), use_container_width=True)
+    st.plotly_chart(RenderEngine.draw_z_wave(df, gui_threshold), use_container_width=True)
 
     # ==============================================================================
     # 4. READ AND STREAM LIVE RUNTIME DISK RECORDS FROM ABSOLUTE /APP/LOGS/ MOUNT
@@ -170,27 +179,33 @@ def boot_dashboard_package():
 
     with col_log:
         st.markdown("**Last 5 Core Runtime Strings (`execution.log`):**")
-        log_path = "/app/logs/execution.log"  # ◄ FIXED: Absolute container path route
-        if os.path.exists(log_path):
+        log_path = "/app/logs/execution.log"
+
+        # Ensure file exists AND has content before reading
+        if os.path.exists(log_path) and os.path.getsize(log_path) > 0:
             with open(log_path, "r", encoding="utf-8", errors="ignore") as log_file:
                 lines = log_file.readlines()
                 st.code("".join(lines[-5:]), language="text")
         else:
-            st.info("Synchronizing data with orchestrator ticker channel...")
+            st.info("🔄 Synchronizing log streams with orchestrator engine... (Waiting for bot initialization)")
 
     with col_csv:
         st.markdown("**Full Scrollable Transaction Archive (`trades.csv`):**")
-        csv_path = "/app/logs/trades.csv"  # ◄ FIXED: Absolute container path route
+        csv_path = "/app/logs/trades.csv"
+
+        # Ensure file exists AND has content before passing to pandas parser
         if os.path.exists(csv_path) and os.path.getsize(csv_path) > 0:
-            trades_df = pd.read_csv(csv_path)
-
-            # Sort data array natively so the newest signals hit the absolute top row
-            scrollable_df = trades_df.iloc[::-1].reset_index(drop=True)
-
-            # FIXED: Removed .tail(5) to pass an expansive, infinite scrolling table to the container frame
-            st.dataframe(scrollable_df, width="stretch", height=300)
+            try:
+                trades_df = pd.read_csv(csv_path)
+                if not trades_df.empty:
+                    scrollable_df = trades_df.iloc[::-1].reset_index(drop=True)
+                    st.dataframe(scrollable_df, use_container_width=True, height=300)
+                else:
+                    st.info("📈 Log file initialized. Waiting for transaction execution metrics...")
+            except Exception:
+                st.info("⚠️ Initializing file structure hooks...")
         else:
-            st.info("Waiting for Z-Score thresholds to breach to log transactions to spreadsheet.")
+            st.info("⏳ Waiting for Z-Score thresholds to breach to log transactions to spreadsheet.")
 
 
 if __name__ == "__main__":
