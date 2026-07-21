@@ -3,14 +3,45 @@ import pandas as pd
 import numpy as np
 import os
 
+# 1. INITIALIZE PLATFORM CONFIGURATION (Must be the absolute first layout directive)
+st.set_page_config(
+    page_title="QuantEngine | WebGUI",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 # CRITICAL DYNAMIC HOOKS: Imports your live alpha logic directly
 from alpha.prob_velocity import ProbabilityVelocityStrategy
 from webgui_dashboard.charts import RenderEngine
 
+
+def native_load_dotenv():
+    """Alternative standard library parser replacing python-dotenv functionality."""
+    if os.path.exists(".env"):
+        with open(".env", "r", encoding="utf-8") as f:
+            for line in f:
+                # Strip leading/trailing whitespaces and newline characters safely
+                line = line.strip()
+
+                # Skip comments and empty structural lines
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+
+                    key = key.strip()
+                    value = value.strip()
+
+                    # ROBUST STRIP: Strip any surrounding single OR double quotes clean
+                    if value.startswith(('"', "'")) and value.endswith(('"', "'")):
+                        value = value[1:-1]
+
+                    os.environ[key] = value
+
+
 def check_gui_authentication():
     """Verifies user login keys securely using a form container to prevent browser refresh errors."""
-    expected_username = "admin_plamen"
-    expected_password = "institutional_quant_2026"
+    native_load_dotenv()
+    expected_username = os.getenv("DASHBOARD_ADMIN_USER")
+    expected_password = os.getenv("DASHBOARD_ADMIN_PASS")
 
     # Initialize authentication tracking state within Streamlit memory mapping
     if "authenticated" not in st.session_state:
@@ -18,20 +49,17 @@ def check_gui_authentication():
 
     # Render access screen if user has not yet authenticated
     if not st.session_state["authenticated"]:
-        st.set_page_config(page_title="QuantEngine | Login", layout="centered")
-
         st.title("🛡️ Institutional Algorithmic Platform Access")
         st.markdown("---")
 
         # Enclose the authentication inputs in a native Streamlit Form
-        # This completely isolates the fields from browser extension interference
         with st.form(key="login_form_gate"):
             user_input = st.text_input("Username ID", placeholder="Enter authorization profile ID")
             pass_input = st.text_input("Password Key", type="password", placeholder="Enter platform secret key")
-            submit_button = st.form_submit_button(label="Authenticate Session", use_container_width=True)
+            submit_button = st.form_submit_button(label="Authenticate Session", width="stretch")
 
         if submit_button:
-            # DIAGNOSTIC LOGGING: Prints exact characters to the PyCharm terminal console
+            # DIAGNOSTIC LOGGING: Prints exact characters to the terminal console
             print(f"DEBUG CRITICAL: [Expected User: 'admin_plamen'] | [Typed User: '{user_input}']")
             print(f"DEBUG CRITICAL: [Expected Pass: 'institutional_quant_2026'] | [Typed Pass: '{pass_input}']")
 
@@ -45,17 +73,15 @@ def check_gui_authentication():
         return False
     return True
 
+
 def boot_dashboard_package():
     # 1. ENFORCE GATEKEEPER LOCKDOWN FIRST
     if not check_gui_authentication():
         return
 
-    # 2. INITIALIZE PLATFORM CONFIGURATION (Must be the first layout directive)
-    st.set_page_config(page_title="QuantEngine | WebGUI", layout="wide", initial_sidebar_state="expanded")
-
-    # 3. ACTIVATE CONTINUOUS REAL-TIME POLLING LOOP
+    # 2. ACTIVATE CONTINUOUS REAL-TIME POLLING LOOP
     # Forces Streamlit to auto-refresh and pull fresh log data every 3 seconds natively
-    st.logo("https://streamlit.io")
+    st.logo("https://githubusercontent.com")
     st.sidebar.markdown("---")
     st.sidebar.caption("⏳ Automated Interface Stream Polling Active")
     st.fragment(run_every=3)(lambda: None)()
@@ -86,7 +112,7 @@ def boot_dashboard_package():
     st.sidebar.markdown("---")
 
     # Session Terminate Logout button logic
-    if st.sidebar.button("🔒 Terminate Platform Session", use_container_width=True):
+    if st.sidebar.button("🔒 Terminate Platform Session", width="stretch"):
         st.session_state["authenticated"] = False
         st.rerun()
 
@@ -95,7 +121,6 @@ def boot_dashboard_package():
     # ==============================================================================
     # 2. RUN RE-CALCULATIONS DIRECTLY VIA YOUR ALPHA PACKAGE
     # ==============================================================================
-    # Instantiating your real mathematical strategy class directly into the frontend loop
     strategy_instance = ProbabilityVelocityStrategy(lookback_window=gui_lookback, entry_threshold_z=gui_threshold)
 
     # Generate identical base pricing arrays matching your core gateway failover metrics
@@ -125,46 +150,47 @@ def boot_dashboard_package():
     # FEED MATRIX VIA NATIVE STRATEGY: Iteratively execute your actual strategy module logic
     signals = []
     for idx in range(len(df)):
-        # Extract rolling price arrays passing matching dimensions directly to your code block
         price_slice = df["Price"].iloc[max(0, idx - gui_lookback + 1):idx + 1].to_numpy()
         signals.append(strategy_instance.generate_signal(price_slice))
 
     df["Z_Score_Signal"] = signals
 
     # ==============================================================================
-    # 3. RENDER INTERACTIVE PLOTLY GRAPHS
+    # 3. RENDER INTERACTIVE PLOTLY GRAPHS (Clean width parameters passed natively)
     # ==============================================================================
-    st.plotly_chart(RenderEngine.draw_market_matrix(df, gui_threshold), use_container_width=True)
-    st.plotly_chart(RenderEngine.draw_z_wave(df, gui_threshold), use_container_width=True)
+    st.plotly_chart(RenderEngine.draw_market_matrix(df, gui_threshold), width="stretch")
+    st.plotly_chart(RenderEngine.draw_z_wave(df, gui_threshold), width="stretch")
 
     # ==============================================================================
-    # 4. READ AND STREAM LIVE RUNTIME DISK RECORDS FROM LOGS/
+    # 4. READ AND STREAM LIVE RUNTIME DISK RECORDS FROM ABSOLUTE /APP/LOGS/ MOUNT
     # ==============================================================================
     st.markdown("---")
-    st.subheader("📋 Production System Logs Tracker (Sourced from `logs/`)")
+    st.subheader("📋 Production System Logs Tracker (Sourced from `/app/logs/`)")
     col_log, col_csv = st.columns(2)
 
     with col_log:
-        st.markdown("**Last 5 Core Runtime Strings (`logs/execution.log`):**")
-        log_path = "logs/execution.log"
+        st.markdown("**Last 5 Core Runtime Strings (`execution.log`):**")
+        log_path = "/app/logs/execution.log"  # ◄ FIXED: Absolute container path route
         if os.path.exists(log_path):
-            # CACHE-BUSTER: We read the file in binary mode with an explicit system reload instruction
             with open(log_path, "r", encoding="utf-8", errors="ignore") as log_file:
                 lines = log_file.readlines()
-                # Slice and print the absolute latest 5 events from the tail end of the log
                 st.code("".join(lines[-5:]), language="text")
         else:
             st.info("Synchronizing data with orchestrator ticker channel...")
 
     with col_csv:
-        st.markdown("**Last 5 Transmitted MT5 Payloads (`logs/trades.csv`):**")
-        csv_path = "logs/trades.csv"
+        st.markdown("**Full Scrollable Transaction Archive (`trades.csv`):**")
+        csv_path = "/app/logs/trades.csv"  # ◄ FIXED: Absolute container path route
         if os.path.exists(csv_path) and os.path.getsize(csv_path) > 0:
-            # CACHE-BUSTER: We forcefully refresh the pandas parser engine buffer memory cache
             trades_df = pd.read_csv(csv_path)
-            st.dataframe(trades_df.tail(5), use_container_width=True)
+
+            # Sort data array natively so the newest signals hit the absolute top row
+            scrollable_df = trades_df.iloc[::-1].reset_index(drop=True)
+
+            # FIXED: Removed .tail(5) to pass an expansive, infinite scrolling table to the container frame
+            st.dataframe(scrollable_df, width="stretch", height=300)
         else:
-            st.info("⚖️ Waiting for Z-Score thresholds to breach to log transactions to spreadsheet.")
+            st.info("Waiting for Z-Score thresholds to breach to log transactions to spreadsheet.")
 
 
 if __name__ == "__main__":

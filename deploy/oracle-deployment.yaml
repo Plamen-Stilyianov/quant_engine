@@ -1,20 +1,75 @@
-# 2. QUANT_ENGINE CORE BOT EXECUTION (Runs main.py)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: quant-bot
+  name: mt5-bridge
   namespace: quant-engine
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: quant-bot
+      app: mt5-bridge
   template:
     metadata:
       labels:
-        app: quant-bot
+        app: mt5-bridge
     spec:
-      # ◄ OPTIMIZED: Replaced strict nodeSelector with flexible multi-arch scheduler
+      nodeSelector:
+        kubernetes.io/arch: amd64  # Pin Wine translation to x86_64 nodes only
+      imagePullSecrets:
+        - name: ocir-secret
+      containers:
+      - name: mt5-wine
+        image: iad.ocir.io/idqcoec1tv4k/trading-system/metatrader5_vnc:latest
+        imagePullPolicy: Always
+        ports:
+        - name: rpyc
+          containerPort: 8001
+        - name: vnc
+          containerPort: 3000
+        env:
+        - name: CUSTOM_USER
+          value: "admin"
+        - name: PASSWORD
+          value: "secure_vnc_telemetry_pass"
+        - name: TZ
+          value: "Europe/London"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mt5-bridge
+  namespace: quant-engine
+spec:
+  type: ClusterIP
+  ports:
+  - name: rpyc-port
+    port: 8001
+    targetPort: 8001
+  - name: vnc-port
+    port: 3000
+    targetPort: 3000
+  selector:
+    app: mt5-bridge
+---
+# CONSOLIDATED QUANT_ENGINE RUNTIME (Bot + Dashboard UI together)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-runtime
+  namespace: quant-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quant-runtime
+  template:
+    metadata:
+      labels:
+        app: quant-runtime
+      annotations:
+        # ◄ FIXED: Added configuration timestamp to bypass any sticky OCI deployment image caching
+        quantengine.platform/build-id: "2026-07-20-v1"
+    spec:
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -22,13 +77,12 @@ spec:
             - matchExpressions:
               - key: kubernetes.io/arch
                 operator: In
-                values:
-                - arm64
-                - amd64
+                values: [arm64, amd64]
       imagePullSecrets:
         - name: ocir-secret
       containers:
-      - name: engine
+      # CONTAINER A: THE CORE TRADING BOT
+      - name: bot-engine
         image: iad.ocir.io/idqcoec1tv4k/trading-system/backend:v7-multiarch
         imagePullPolicy: Always
         command: ["python3"]
@@ -42,79 +96,36 @@ spec:
           value: "mt5-bridge.quant-engine.svc.cluster.local"
         - name: MT5_PORT
           value: "8001"
-        - name: APP_ENV
-          valueFrom:
-            secretKeyRef:
-              name: quant-engine-secret
-              key: APP_ENV
         - name: OANDA_ACCESS_TOKEN
           valueFrom:
-            secretKeyRef:
-              name: quant-engine-secret
-              key: OANDA_ACCESS_TOKEN
+            secretKeyRef: { name: quant-engine-secret, key: OANDA_ACCESS_TOKEN }
         - name: OANDA_ACCOUNT_ID
           valueFrom:
-            secretKeyRef:
-              name: quant-engine-secret
-              key: OANDA_ACCOUNT_ID
+            secretKeyRef: { name: quant-engine-secret, key: OANDA_ACCOUNT_ID }
         - name: OANDA_API_URL
           valueFrom:
-            secretKeyRef:
-              name: quant-engine-secret
-              key: OANDA_API_URL
+            secretKeyRef: { name: quant-engine-secret, key: OANDA_API_URL }
         - name: MT5_LOGIN
           valueFrom:
-            secretKeyRef:
-              name: quant-engine-secret
-              key: MT5_LOGIN
+            secretKeyRef: { name: quant-engine-secret, key: MT5_LOGIN }
         - name: MT5_PASSWORD
           valueFrom:
-            secretKeyRef:
-              name: quant-engine-secret
-              key: MT5_PASSWORD
+            secretKeyRef: { name: quant-engine-secret, key: MT5_PASSWORD }
         - name: MT5_SERVER
           valueFrom:
-            secretKeyRef:
-              name: quant-engine-secret
-              key: MT5_SERVER
+            secretKeyRef: { name: quant-engine-secret, key: MT5_SERVER }
+        - name: APP_ENV
+          valueFrom:
+            secretKeyRef: { name: quant-engine-secret, key: APP_ENV }
+        - name: ALERT_WEBHOOK_URL
+          valueFrom:
+            secretKeyRef: { name: quant-engine-secret, key: ALERT_WEBHOOK_URL }
         volumeMounts:
-        - name: logs-volume
+        - name: local-shared-logs
           mountPath: /app/logs
-      volumes:
-      - name: logs-volume
-        emptyDir: {}
----
-# 3. QUANT_ENGINE STREAMLIT INTERACTIVE DATA UI (Runs webgui_dashboard/main_ui.py)
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: quant-ui
-  namespace: quant-engine
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: quant-ui
-  template:
-    metadata:
-      labels:
-        app: quant-ui
-    spec:
-      # ◄ OPTIMIZED: Replaced strict nodeSelector with flexible multi-arch scheduler
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: kubernetes.io/arch
-                operator: In
-                values:
-                - arm64
-                - amd64
-      imagePullSecrets:
-        - name: ocir-secret
-      containers:
-      - name: dashboard
+
+      # CONTAINER B: THE STREAMLIT DASHBOARD (Sidecar)
+      - name: dashboard-ui
         image: iad.ocir.io/idqcoec1tv4k/trading-system/backend:v7-multiarch
         imagePullPolicy: Always
         command: ["python3"]
@@ -128,17 +139,33 @@ spec:
           value: "Europe/London"
         - name: DASHBOARD_USER
           valueFrom:
-            secretKeyRef:
-              name: quant-engine-secret
-              key: DASHBOARD_USER
+            secretKeyRef: { name: quant-engine-secret, key: DASHBOARD_USER }
         - name: DASHBOARD_PASS
           valueFrom:
-            secretKeyRef:
-              name: quant-engine-secret
-              key: DASHBOARD_PASS
+            secretKeyRef: { name: quant-engine-secret, key: DASHBOARD_PASS }
         volumeMounts:
-        - name: logs-volume
+        - name: local-shared-logs
           mountPath: /app/logs
+
       volumes:
-      - name: logs-volume
+      - name: local-shared-logs
         emptyDir: {}
+---
+# PUBLIC OCI LOAD BALANCER (Points straight to our consolidated runtime app selector)
+apiVersion: v1
+kind: Service
+metadata:
+  name: quant-ui-lb
+  namespace: quant-engine
+  annotations:
+    service.beta.kubernetes.io/oci-load-balancer-shape: "flexible"
+    service.beta.kubernetes.io/oci-load-balancer-shape-flex-min: "10"
+    service.beta.kubernetes.io/oci-load-balancer-shape-flex-max: "10"
+spec:
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8501
+  selector:
+    app: quant-runtime
