@@ -67,17 +67,16 @@ spec:
       labels:
         app: quant-runtime
       annotations:
-        # ◄ FIXED: Added configuration timestamp to bypass any sticky OCI deployment image caching
-        quantengine.platform/build-id: "2026-07-20-v1"
+        # Dynamic cache-busting anchor updated for your deployment sync window
+        quantengine.platform/build-id: "2026-07-21-v3"
     spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: kubernetes.io/arch
-                operator: In
-                values: [arm64, amd64]
+      # FIXED FOR MT5LINUX: Force the pod to settle explicitly on amd64 nodes to satisfy x86 binary locks
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      # Enforce permission profiles over your local storage channels automatically
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
       imagePullSecrets:
         - name: ocir-secret
       containers:
@@ -85,8 +84,8 @@ spec:
       - name: bot-engine
         image: iad.ocir.io/idqcoec1tv4k/trading-system/backend:v7-multiarch
         imagePullPolicy: Always
-        command: ["python3"]
-        args: ["main.py"]
+        command: ["/usr/local/bin/python3", "main.py"]  # ◄ FIXED: Direct script invoke removes loop conflicts
+        args: []
         env:
         - name: PYTHONUNBUFFERED
           value: "1"
@@ -128,8 +127,7 @@ spec:
       - name: dashboard-ui
         image: iad.ocir.io/idqcoec1tv4k/trading-system/backend:v7-multiarch
         imagePullPolicy: Always
-        command: ["python3"]
-        args: ["-m", "streamlit", "run", "webgui_dashboard/main_ui.py", "--server.port=8501", "--server.address=0.0.0.0"]
+        # ◄ Leverages default CMD execution safely from your multi-stage Dockerfile
         ports:
         - containerPort: 8501
         env:
@@ -137,10 +135,10 @@ spec:
           value: "1"
         - name: TZ
           value: "Europe/London"
-        - name: DASHBOARD_USER
+        - name: DASHBOARD_ADMIN_USER  # ◄ FIXED: Aligns perfectly with your script's os.getenv target key name
           valueFrom:
             secretKeyRef: { name: quant-engine-secret, key: DASHBOARD_USER }
-        - name: DASHBOARD_PASS
+        - name: DASHBOARD_ADMIN_PASS  # ◄ FIXED: Aligns perfectly with your script's os.getenv target key name
           valueFrom:
             secretKeyRef: { name: quant-engine-secret, key: DASHBOARD_PASS }
         volumeMounts:
@@ -151,7 +149,7 @@ spec:
       - name: local-shared-logs
         emptyDir: {}
 ---
-# PUBLIC OCI LOAD BALANCER (Points straight to our consolidated runtime app selector)
+# PUBLIC OCI LOAD BALANCER
 apiVersion: v1
 kind: Service
 metadata:

@@ -1,8 +1,12 @@
+# Aligned Core Data Science Stack
 numpy
 pandas
 scipy
 requests
 plotly
 streamlit
-#MetaTrader5
-mt5linux
+
+# CRITICAL STRIP: Explicitly pin communication bridges to prevent version drift
+plumbum==1.7.0
+rpyc==5.2.3
+mt5linux==1.0.3

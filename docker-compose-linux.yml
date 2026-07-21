@@ -1,25 +1,19 @@
-version: "3.8"
-
 services:
-  # MT5 ENGINE TRANSLATION GATEWAY (Wine Component)
+  # 1. MT5 WINE BRIDGE (Reverted to your working gmag11 image)
   mt5_bridge:
     image: gmag11/metatrader5_vnc:latest
     container_name: quant_trading_mt5_bridge_local
     restart: always
     ports:
-      - "3000:3000"  # View MT5 execution workspace directly via http://localhost:3000
+      - "3000:3000"
     environment:
       - CUSTOM_USER=admin
       - PASSWORD=secure_vnc_telemetry_pass
       - TZ=Europe/London
     volumes:
       - mt5_config:/config
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
 
-  # QUANT BOT CORE
+  # 2. QUANT BOT CORE ENGINE
   quant_bot:
     build:
       context: .
@@ -33,27 +27,30 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - TZ=Europe/London
+      - PORT=8000  # ◄ Keeps bot communication off port 8501
+    command: ["python3", "main.py"]
     volumes:
       - .:/app
       - ./logs:/app/logs
 
-  # STREAMLIT WEB DASHBOARD PACKAGE
+  # 3. STREAMLIT WEB DASHBOARD PACKAGE
   quant_ui_package:
-    image: python:3.13-slim
+    build:
+      context: .
+      dockerfile: Dockerfile.linux
     container_name: quant_trading_gui_package_local
     restart: always
     ports:
-      - "8502:8501"
-    working_dir: /app
-    volumes:
-      - .:/app
-      - ./logs:/app/logs
+      - "8502:8501"  # ◄ Accessible via http://localhost:8502
+    env_file:
+      - .env
     environment:
       - PYTHONUNBUFFERED=1
       - TZ=Europe/London
-    command: >
-      sh -c "pip install --no-cache-dir streamlit pandas numpy scipy plotly && 
-            python -m streamlit run webgui_dashboard/main_ui.py --server.port=8501 --server.address=0.0.0.0"
+    command: ["streamlit", "run", "webgui_dashboard/main_ui.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    volumes:
+      - .:/app
+      - ./logs:/app/logs
 
 volumes:
   mt5_config:

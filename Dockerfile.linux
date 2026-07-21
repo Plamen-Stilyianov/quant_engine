@@ -1,28 +1,41 @@
-FROM python:3.11-slim
+# ==============================================================================
+# STAGE 1: THE COMPILATION WHEEL BUILDER (Temporary Builder Environment)
+# ==============================================================================
+FROM python:3.13-slim AS package-builder
+
+WORKDIR /build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc \
+        g++ \
+        make \
+        libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+COPY requirements.txt .
+RUN pip wheel --no-cache-dir --wheel-dir /build/wheels -r requirements.txt
+
+# ==============================================================================
+# STAGE 2: THE SECURE DEPLOYMENT RUNNER (Final Slim Production Image)
+# ==============================================================================
+FROM python:3.13-slim AS production-runner
 
 WORKDIR /app
 
-# Clean up system dependencies
-RUN apt-get update && apt-get install -y \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir --upgrade pip
 
-RUN pip3 install --no-cache-dir --upgrade pip setuptools wheel
+COPY --from=package-builder /build/wheels /app/wheels
 
-# HARD-CODED INLINE PIP: Injected plotly to clear the UI render engine block
-RUN pip3 install --no-cache-dir \
-    "numpy>=2.1.0" \
-    "pandas>=2.2.0" \
-    "scipy>=1.14.0" \
-    "requests>=2.32.0" \
-    "streamlit>=1.59.2" \
-    "plotly>=5.22.0" \
-    "plumbum==1.7.0" \
-    "rpyc==5.2.3" \
-    "mt5linux==1.0.3"
+# Safe multi-arch shell execution loop to extract wheels seamlessly
+RUN for whl in /app/wheels/*.whl; do pip install --no-cache-dir --no-index --find-links=/app/wheels "$whl"; done \
+    && rm -rf /app/wheels
 
-COPY . /app
+# Copy application data directly
+COPY . .
+RUN mkdir -p /app/logs
 
 ENV PYTHONUNBUFFERED=1
 
-CMD ["python3", "main.py"]
+CMD ["streamlit", "run", "webgui_dashboard/main_ui.py", "--server.port=8501", "--server.address=0.0.0.0"]
