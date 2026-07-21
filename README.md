@@ -6,6 +6,19 @@ The architecture is built from the ground up to follow a strict **Separation of 
 
 ---
 
+## ☁️ Live Cloud Production Deployment (Oracle Cloud Infrastructure)
+
+The platform is actively built, verified, and running in production using a fully automated multi-architecture deployment pipeline.
+
+* **Live Platform URL**: http://141.148.65.238/
+* **👤 Username ID**: `admin_plamen`
+* **🔑 Password Key**: `institutional_quant_2026`
+
+### 🏗️ Live Cloud Infrastructure Architecture
+![QuantEngine Live OCI Production Dashboard Interface](docs/oci_trading_engine.png)
+
+---
+
 ## 🎛️ Interactive WebGUI Analytics Control Dashboard
 
 The platform features a fully decoupled, interactive execution and simulation dashboard package. This interface allows quantitative operators to actively mutate alpha factors, lookback windows, and standard deviation thresholds to visualize real-time strategy behavior across multiple simulated market structures.
@@ -24,22 +37,22 @@ Tracks the automated gateway intercepting a severe structural price crash, bypas
 
 To minimize execution risks and optimize hardware efficiency, the platform follows a strict, three-phase environmental escalation and deployment pipeline:
 
-### 🪟 Phase 1: Local Windows Sandboxed Prototyping (Current)
+### 🪟 Phase 1: Local Windows Sandboxed Prototyping (Completed)
 * **Environment**: Windows 11 Desktop + Docker Desktop for Windows + PyCharm.
 * **Objective**: Rapid algorithm prototyping, UI visualization tuning, and configuration locking via local `.env` parameter injections. Containers leverage local shared volumes for immediate data persistence on the Windows host system.
 
-### 🦎 Phase 2: openSUSE Tumbleweed Bare-Metal Workstation Migration (Next)
+### 🦎 Phase 2: openSUSE Tumbleweed Bare-Metal Workstation Migration (Active Testing)
 * **Environment**: Native rolling-release openSUSE Tumbleweed workstation running a low-latency Linux kernel.
 * **Objective**: Eliminate hypervisor translation overhead by executing directly on the bare-metal Linux POSIX runtime to minimize thread latency.
 * **Toolchain Integration**: Utilizing native container engines (`podman`/`docker`) along with **Docker Buildx** pipelines to securely cross-compile and verify x86_64 and arm64 system layers locally before pushing to cloud registries.
 
 ### ☁️ Phase 3: Cloud Orchestration via Kubernetes (K8s) on Oracle Cloud Infrastructure (OCI)
-* **Environment**: OCI Container Engine for Kubernetes (OKE) running on high-efficiency Ampere A1 Compute shapes (ARM64 architecture).
-* **Objective**: High-availability, production-grade automated scaling.
+* **Environment**: OCI Container Engine for Kubernetes (OKE) running on high-efficiency, dedicated AMD64 Compute Shapes.
+* **Objective**: High-availability, production-grade automated scaling utilizing sidecar pod containers.
 * **Architecture Mapping**:
-  * **Stateless Pod Isolation**: The `quant_bot` core engine and the `webgui_dashboard` application are split into completely independent pods, maximizing computing lanes.
-  * **Ingress Secure Routing**: The user interface is fronted by an encrypted K8s Ingress Controller mapping port 443 with TLS termination, keeping financial telemetry secure.
-  * **Persistent Volume Claims (PVC)**: Core logging matrices and transaction histories are written out of containers using K8s PVCs bound to high-IOPS OCI block storage volumes, ensuring permanent data persistence when pods lifecycle.
+  * **Stateless Pod Isolation**: The `quant_bot` core engine and the `webgui_dashboard` application are split into completely independent container runtimes sharing an absolute `/app/logs` volume, maximizing computing lanes.
+  * **Wine Integration Gateway**: The `mt5-bridge` component runs inside an isolated, pinned x86_64 node workspace to allow seamless Linux-to-Windows API translation for MetaTrader 5 routing.
+  * **Flexible Load Balancer Ingress**: Fronted by an automated OCI Load Balancer shaping web requests dynamically to keep interface delivery snappy and concurrent.
 
 ---
 
@@ -52,17 +65,19 @@ quant_engine/
 │
 ├── docs/                 # Media directory hosting repository presentation graphics
 │   ├── nd_dashboard_metrics.png        # Select Simulation Regime - Sideways / Normal Distribution
-│   └── crash_dashboard_metrics.png     # Select Simulation Regime - Extreme Downward Crash Shock
+│   ├── crash_dashboard_metrics.png     # Select Simulation Regime - Extreme Downward Crash Shock
+│   └── oci_trading_engine.png          # Active Live Production Dashboards Telemetry layout
 │
 ├── .env                   # Secure local environment variables (API tokens, private parameters)
 ├── .gitignore             # Strict exclusion map preventing secret leaks and cache clutter to GitHub
 ├── config.py              # Single source of truth for runtime values and global risk limits
 ├── main.py                # System bootstrapping layer and dual-destination logging handler
-├── Dockerfile             # Inline multi-stage lightweight Linux container construction blueprint
-├── docker-compose.yml     # Orchestration layout for hot-reloading and data persistence
+├── Dockerfile.linux       # Production multi-stage AMD64/ARM64 Buildx container construction blueprint
+├── docker-compose-linux.yml # Orchestration layout for hot-reloading and openSUSE data persistence
 │
-├── logs/                  # Persistent data directory mapped out to physical Windows host storage
-│   └── execution.log      # Active historical telemetry containing all trade cycles and anomalies
+├── logs/                  # Persistent data directory mapped out to physical host storage
+│   ├── execution.log      # Active historical telemetry containing all trade cycles and anomalies
+│   └── trades.csv         # Structured transaction ledger output mapping signal timestamps
 │
 ├── core/                  # Core infrastructure engine execution loop
 │   ├── __init__.py        # Exposes the core execution modules
@@ -90,7 +105,7 @@ quant_engine/
 
 ### 1. Root Configuration & Security Guardrails
 * **`.env`**: Locks down private keys locally (such as your `OANDA_ACCESS_TOKEN` and account IDs). These are injected dynamically into the container runtime memory at boot.
-* **`.gitignore`**: Explicitly untracks `.env`, local `logs/`, `__pycache__/`, and PyCharm's internal `.idea/` folder to maintain compliance with clean Git practices.
+* **`.gitignore`**: Explicitly untracks `.env`, local `logs/`, `__pycache__/`, and local environment configurations to maintain compliance with clean Git repository rules.
 * **`config.py`**: Intercepts environment injections. Defines symbol targets (`EUR_USD`), system polling loops, and establishes capital preservation parameters.
 
 ### 2. `core/` Infrastructure Package
@@ -99,43 +114,4 @@ quant_engine/
 
 ### 3. `alpha/` Statistical Strategy Package
 * **`alpha/base_strategy.py`**: Outlines the platform's programming interface contract using Python's `abc` module. Any new quantitative concept simply inherits from this block, ensuring the engine remains infinitely extensible.
-* **`alpha/prob_velocity.py`**: The quantitative core. It converts price bars into rolling log returns (Price Velocity Distribution). It calculates real-time Z-scores using standard deviations. If current returns velocity breaches statistical expectancy limits (e.g., |Z| > 1.5), it triggers a mean-reverting signal without relying on lagging crossover lines.
-
-### 4. `risk/` Capital Preservation Package
-* **`risk/risk_manager.py`**: The institutional gatekeeper. It possesses no strategy knowledge and focuses entirely on pre-trade parameter compliance. It converts signals into **100% compliant MetaTrader 5 (MT5) order dictionaries**, mapping variables directly to MT5's native specification layout.
-
----
-
-## 🛠️ Local Installation & Development in PyCharm
-
-### 1. Prerequisites
-* Install [Docker Desktop for Windows](https://docker.com).
-* Ensure your local project environment contains a secure `.env` file mapped to root.
-
-### 2. Containerized Orchestration via Docker Compose
-To launch the complete engine with full hot-reloading (any changes you make inside PyCharm instantly sync inside the running container) and persistent disk log mapping, use the PowerShell terminal panel:
-```powershell
-docker-compose build --no-cache ; docker-compose up -d
-```
-
-### 3. Verification of System Telemetry
-Once running, the log file `logs/execution.log` captures execution ticks, failover triggers, and MT5 emulation layer outputs:
-```text
-2026-07-19 17:07:15,093 [WARNING] ⚠️ [Gateway Link Intercepted] OANDA Server returned code 403. Activating localized statistical simulation engine...
-2026-07-19 17:07:15,094 [INFO] ⚙️ [Failover Engine] Injecting Regime: Extreme Volatility Downward Price Shock.
-2026-07-19 17:07:15,099 [INFO] 📊 [Alpha Math Core] Current Velocity: -0.00018879 | Rolling Mean: -0.00018794 | Standard Deviation: 0.00000050 | Z-Score Output: -1.7021
-2026-07-19 17:07:15,100 [INFO] ⚠️ Extreme Downward Outlier Detected (Z < -1.5). Distribution favors LONG snapback.
-2026-07-19 17:07:15,102 [INFO] 🎯 Actionable strategy signal detected (1). Querying risk gates...
-2026-07-19 17:07:15,103 [INFO] ==================================================================
-2026-07-19 17:07:15,103 [INFO] 🎯 [MT5 CORE EMULATION LAYER - TRADING SIGNAL TELEMETRY]
-2026-07-19 17:07:15,104 [INFO] 🔹 Target Symbol: EUR_USD | Side: 0 (0=Buy, 1=Sell)
-2026-07-19 17:07:15,105 [INFO] 🔹 Execution Price: 1.07 | Target Volume: 0.1 Lots
-2026-07-19 17:07:15,106 [INFO] 🔹 Absolute Stop Loss: 1.068 | Take Profit: 1.074
-2026-07-19 17:07:15,107 [INFO] 🔹 MT5 Magic Identifier: 99112233
-2026-07-19 17:07:15,108 [INFO] ==================================================================
-```
-
----
-
-## 🛡️ License
-Institutional Proprietary Framework - All Rights Reserved.
+* **`alpha/prob_velocity.py`**: The quantitative core. It converts price bars into rolling log returns (Price Velocity Distribution). It calculates real-time Z-scores using standard deviations. If current returns velocity breaches statistical thresholds, it generates entry metrics.
